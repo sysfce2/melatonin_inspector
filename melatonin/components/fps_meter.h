@@ -22,6 +22,7 @@ namespace melatonin
             // unfortunately, on macOS, this no longer works
             // See FAQ in README for more info
             setOpaque (true);
+            setAlwaysOnTop(true);
 
             setInterceptsMouseClicks (false, false);
         }
