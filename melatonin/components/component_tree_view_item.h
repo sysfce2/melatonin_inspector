@@ -319,7 +319,7 @@ namespace melatonin
             for (int i = 0; i < component->getNumChildComponents(); ++i)
             {
                 auto child = component->getChildComponent (i);
-                if (componentString (child) != "Melatonin Overlay")
+                if (dynamic_cast<Overlay*> (child) == nullptr)
                     recursivelyAddChildrenFor (child);
             }
         }
