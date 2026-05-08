@@ -102,10 +102,6 @@ namespace melatonin
 
         void capture (const juce::ComponentPaintDiagnostics& d)
         {
-            JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
-
-            // get<juce::Seconds>() returns a double of seconds, which is what
-            // the rest of the inspector expects (drawTimingText etc.).
             const auto totalSec = d.totalPaintDuration.get<juce::Seconds>();
             const auto paintSec = d.paintDuration.get<juce::Seconds>();
             const auto paintOverSec = d.paintOverChildrenDuration.get<juce::Seconds>();

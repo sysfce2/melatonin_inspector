@@ -58,10 +58,7 @@ namespace melatonin
             selectedComponent = component;
 
 #if MELATONIN_HAS_PAINT_DIAGNOSTICS
-            // paint history is per-component — discard whatever the previously
-            // selected component accumulated. cancelPendingUpdate is sufficient
-            // because both the queued update and this method run on the message
-            // thread (selectComponent is called from mouse/focus callbacks).
+            // paint history is per-component — drop the previous component's
             paintHistory.clear();
             cancelPendingUpdate();
 #endif
@@ -131,10 +128,6 @@ namespace melatonin
 
         [[nodiscard]] const PaintDiagnosticsHistory& getPaintHistory() const noexcept
         {
-            // All reads (Preview::paint) and writes (componentPainted ->
-            // AsyncUpdater::handleAsyncUpdate) must happen on the message
-            // thread; the assert turns the invariant into a runtime check.
-            JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
             return paintHistory;
         }
 

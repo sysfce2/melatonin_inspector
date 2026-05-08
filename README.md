@@ -140,8 +140,8 @@ Toggle the stopwatch button in the Preview panel to see a per-paint histogram, p
 
 Green is under 0.3ms.
 Yellow is above 0.3ms.
-Red is > 1ms. 
-Blue bars are served from component's image cache. 
+Red is > 1ms.
+Blue bars are cache hits.
 
 - **Exclusive** — time spent in the component's own `paint()` + `paintOverChildren()` + any image effect.
 - **With Children** — full paint cycle including descendants.

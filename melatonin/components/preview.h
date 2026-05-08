@@ -362,10 +362,11 @@ namespace melatonin
             {
                 const int sIdx = (oldestIdx + skip + i) % metric.capacity;
                 const auto& sample = metric.samples[(size_t) sIdx];
-                const bool isCache = (sample.cache != PaintDiagnosticsHistory::CacheState::none);
+                // refresh has real paint cost, so only true hits get blue
+                const bool isCacheHit = (sample.cache == PaintDiagnosticsHistory::CacheState::hit);
 
                 juce::Colour c;
-                if (isCache)
+                if (isCacheHit)
                     c = blue;
                 else if (sample.seconds <= 0.0)
                     continue;
@@ -376,10 +377,8 @@ namespace melatonin
                 else
                     c = green;
 
-                // Cache hits paint to ~zero so a pure time-based scale would
-                // show them as invisible 1px nubs. Floor cache-hit bars at ~25%
-                // height so the blue strip is actually readable.
-                const double scaled = isCache
+                // hits register at ~zero — floor at 25% so the blue strip is visible
+                const double scaled = isCacheHit
                     ? juce::jmax (0.25, juce::jmin (sample.seconds / kHistogramFullScaleSec, 1.0))
                     : juce::jmin (sample.seconds / kHistogramFullScaleSec, 1.0);
                 const int barH = juce::jmax (1, (int) (scaled * (double) bounds.getHeight()));
