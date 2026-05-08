@@ -113,11 +113,18 @@ namespace melatonin
             else if (d.readFromCache)
                 state = CacheState::hit;
 
+            // on a hit no paint methods run, so attribute the blit cost
+            // (totalSec) to exclusive — it's the component's own self-render,
+            // not children's
+            const double exclusiveSec = (state == CacheState::hit)
+                ? totalSec
+                : paintSec + paintOverSec + applySec;
+
             total.push (totalSec, state);
             paintMethod.push (paintSec, state);
             paintOverChildren.push (paintOverSec, state);
             applyEffect.push (applySec, state);
-            exclusive.push (paintSec + paintOverSec + applySec, state);
+            exclusive.push (exclusiveSec, state);
         }
     };
 }
