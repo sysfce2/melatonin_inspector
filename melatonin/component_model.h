@@ -2,11 +2,16 @@
 
 #include <utility>
 #include "helpers/component_helpers.h"
+#include "helpers/paint_diagnostics.h"
 #include "juce_gui_basics/juce_gui_basics.h"
 
 namespace melatonin
 {
-    class ComponentModel : private juce::Value::Listener, private juce::ComponentListener
+    class ComponentModel : private juce::Value::Listener,
+                           private juce::ComponentListener
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+                         , private juce::AsyncUpdater
+#endif
     {
     public:
         class Listener
@@ -14,6 +19,11 @@ namespace melatonin
         public:
             virtual ~Listener() = default;
             virtual void componentModelChanged (ComponentModel& model) = 0;
+
+            // Lightweight refresh fired when the paint history ticks over, so
+            // Preview can redraw timings without rebuilding the whole model.
+            // Default no-op.
+            virtual void componentModelPaintHistoryUpdated (ComponentModel&) {}
         };
 
         juce::Value nameValue;
@@ -22,7 +32,6 @@ namespace melatonin
         juce::Value visibleValue, wantsFocusValue, interceptsMouseValue, childrenInterceptsMouseValue;
         juce::Value lookAndFeelValue, typeValue, fontValue, alphaValue;
         juce::Value pickedColor;
-        juce::Value timing1, timing2, timing3, timingMax, hasChildren;
 
         juce::Value isToggleable, toggleState, clickTogglesState, radioGroupId;
 
@@ -30,8 +39,6 @@ namespace melatonin
         {
             juce::Value title, value, role, handlerType;
         } accessiblityDetail;
-
-        double timingWithChildren1, timingWithChildren2, timingWithChildren3, timingWithChildrenMax;
 
         ComponentModel() = default;
 
@@ -50,6 +57,15 @@ namespace melatonin
 
             selectedComponent = component;
 
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+            // paint history is per-component — discard whatever the previously
+            // selected component accumulated. cancelPendingUpdate is sufficient
+            // because both the queued update and this method run on the message
+            // thread (selectComponent is called from mouse/focus callbacks).
+            paintHistory.clear();
+            cancelPendingUpdate();
+#endif
+
             if (selectedComponent)
                 selectedComponent->addComponentListener (this);
 
@@ -64,6 +80,10 @@ namespace melatonin
                 selectedComponent->removeComponentListener (this);
 
             selectedComponent = nullptr;
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+            paintHistory.clear();
+            cancelPendingUpdate();
+#endif
             updateModel();
         }
 
@@ -103,14 +123,36 @@ namespace melatonin
             return selectedComponent;
         }
 
-        [[nodiscard]] bool hasPerformanceTiming()
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        [[nodiscard]] bool hasPaintHistory() const noexcept
         {
-            return timing1.getValue().isDouble();
+            return !paintHistory.empty();
         }
+
+        [[nodiscard]] const PaintDiagnosticsHistory& getPaintHistory() const noexcept
+        {
+            // All reads (Preview::paint) and writes (componentPainted ->
+            // AsyncUpdater::handleAsyncUpdate) must happen on the message
+            // thread; the assert turns the invariant into a runtime check.
+            JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
+            return paintHistory;
+        }
+
+        // Reset the rolling history. Used by Preview's double-click handler.
+        void clearPaintHistory()
+        {
+            paintHistory.clear();
+            cancelPendingUpdate();
+            notifyPaintHistoryUpdated();
+        }
+#endif
 
     private:
         juce::ListenerList<Listener> listenerList;
         juce::Component::SafePointer<juce::Component> selectedComponent;
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        PaintDiagnosticsHistory paintHistory;
+#endif
 
         void updateModel()
         {
@@ -124,8 +166,6 @@ namespace melatonin
 
             if (!selectedComponent)
             {
-                // if not manually removed, it'll linger in the model...
-                removePerformanceData();
                 notifyListeners();
                 return;
             }
@@ -235,9 +275,6 @@ namespace melatonin
                 interceptsMouseValue = interceptsMouse;
                 childrenInterceptsMouseValue = childrenInterceptsMouse;
             }
-
-            hasChildren.setValue (selectedComponent->getNumChildComponents() > 0);
-            populatePerformanceData (selectedComponent->getProperties());
 
             {
                 auto& properties = selectedComponent->getProperties();
@@ -396,60 +433,34 @@ namespace melatonin
             }
         }
 
-        void populatePerformanceData (const juce::NamedValueSet& props)
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        void componentPainted (juce::Component&, const juce::ComponentPaintDiagnostics& d) override
         {
-            if (props.contains ("timing1"))
-            {
-                // assume they are all there
-                timing1 = props["timing1"];
-                timing2 = props["timing2"];
-                timing3 = props["timing3"];
-                timingMax = props["timingMax"];
-
-                timingWithChildren1 = timing1.getValue();
-                timingWithChildren2 = timing2.getValue();
-                timingWithChildren3 = timing3.getValue();
-                timingWithChildrenMax = timingMax.getValue();
-                getTimingWithChildren (selectedComponent);
-            }
-            else
-            {
-                removePerformanceData();
-            }
+            // This callback fires inside the paint cycle, so we keep it as
+            // tight as possible — JUCE explicitly warns that time spent here
+            // counts against the parent component's measured paint time.
+            paintHistory.capture (d);
+            triggerAsyncUpdate();
         }
+
+        void handleAsyncUpdate() override
+        {
+            notifyPaintHistoryUpdated();
+        }
+
+        void notifyPaintHistoryUpdated()
+        {
+            listenerList.call ([this] (Listener& listener) {
+                listener.componentModelPaintHistoryUpdated (*this);
+            });
+        }
+#endif
 
         void notifyListeners()
         {
             listenerList.call ([this] (Listener& listener) {
                 listener.componentModelChanged (*this);
             });
-        }
-
-        void removePerformanceData()
-        {
-            timing1 = juce::var();
-            timing2 = juce::var();
-            timing3 = juce::var();
-            timingMax = juce::var();
-            timingWithChildren1 = juce::var();
-            timingWithChildren2 = juce::var();
-            timingWithChildren3 = juce::var();
-            timingWithChildrenMax = juce::var();
-        }
-
-        void getTimingWithChildren (juce::Component* component)
-        {
-            for (auto child : component->getChildren())
-            {
-                if (child->getProperties().contains ("timing1"))
-                {
-                    timingWithChildren1 += (double) child->getProperties()["timing1"];
-                    timingWithChildren2 += (double) child->getProperties()["timing2"];
-                    timingWithChildren3 += (double) child->getProperties()["timing3"];
-                    timingWithChildrenMax += (double) child->getProperties()["timingMax"];
-                    getTimingWithChildren (child);
-                }
-            }
         }
     };
 }

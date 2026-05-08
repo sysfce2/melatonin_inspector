@@ -15,25 +15,25 @@ namespace melatonin
         {
             setInterceptsMouseClicks (true, true);
             model.addListener (*this);
+
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
             addChildComponent (maxLabel);
+            addChildComponent (avgLabel);
             addAndMakeVisible (timingToggle);
-            maxLabel.setColour (juce::Label::textColourId, colors::iconOff);
-            maxLabel.setJustificationType (juce::Justification::centredTop);
-            maxLabel.setFont (InspectorLookAndFeel::getInspectorFont (18, juce::Font::FontStyleFlags::bold));
+            for (auto* l : { &maxLabel, &avgLabel })
+            {
+                l->setColour (juce::Label::textColourId, colors::iconOff);
+                l->setJustificationType (juce::Justification::centredTop);
+                l->setFont (InspectorLookAndFeel::getInspectorFont (18, juce::Font::FontStyleFlags::bold));
+            }
 
             // by default timings aren't on
             timingToggle.on = settings->props->getBoolValue ("showPerformanceTimings", false);
             timingToggle.onClick = [this] {
-                // don't enable if we don't have timings
-                if (!model.hasPerformanceTiming())
-                {
-                    timingToggle.on = false;
-                    return;
-                }
-
                 settings->props->setValue ("showPerformanceTimings", timingToggle.on);
                 getParentComponent()->resized();
             };
+#endif
         }
 
         ~Preview() override
@@ -48,38 +48,33 @@ namespace melatonin
             g.setColour (colors::black);
             g.fillRect (contentBounds);
 
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
             if (showsPerformanceTimings())
             {
-                // background for the max section
                 maxLabel.setVisible (true);
+                avgLabel.setVisible (true);
+
+                // Tinted backdrops for the AVG/MAX value boxes.
                 g.setColour (colors::propertyValueError.withAlpha (0.17f));
                 g.fillRoundedRectangle (maxBounds.toFloat(), 3);
+                g.setColour (colors::propertyName.withAlpha (0.10f));
+                g.fillRoundedRectangle (avgBounds.toFloat(), 3);
 
                 g.setFont (g.getCurrentFont().withHeight (15.0f));
-                double exclusiveSum = (double) model.timing1.getValue() + (double) model.timing2.getValue() + (double) model.timing3.getValue();
-                bool hasExclusive = exclusiveSum * 1000 * 1000 > 1; // at least 1 microsecond
-                bool hasChildren = model.hasChildren.getValue();
 
-                auto exclusive = exclusiveBounds;
-                g.setColour (hasExclusive ? colors::propertyName : colors::propertyValueDisabled);
-                g.drawText ("Exclusive", exclusive.removeFromLeft (100), juce::Justification::topLeft);
-                drawTimingText (g, exclusive.removeFromLeft (60), model.timing1.getValue(), !hasExclusive);
-                drawTimingText (g, exclusive.removeFromLeft (60), model.timing2.getValue(), !hasExclusive);
-                drawTimingText (g, exclusive.removeFromLeft (60), model.timing3.getValue(), !hasExclusive);
-                drawTimingText (g, exclusive.removeFromLeft (60), model.timingMax.getValue(), !hasExclusive);
+                const auto& history = model.getPaintHistory();
+                const bool hasExclusive = history.exclusive.filled > 0;
+                const bool hasChildren = history.total.filled > 0;
 
-                auto withChildren = withChildrenBounds;
-                g.setColour (hasChildren ? colors::propertyName : colors::propertyValueDisabled);
-                g.drawText ("With Children", withChildren.removeFromLeft (100), juce::Justification::topLeft);
-                drawTimingText (g, withChildren.removeFromLeft (60), model.timingWithChildren1, !hasChildren);
-                drawTimingText (g, withChildren.removeFromLeft (60), model.timingWithChildren2, !hasChildren);
-                drawTimingText (g, withChildren.removeFromLeft (60), model.timingWithChildren3, !hasChildren);
-                drawTimingText (g, withChildren.removeFromLeft (60), model.timingWithChildrenMax, !hasChildren);
+                drawPerfRow (g, exclusiveBounds, "Exclusive", history.exclusive, hasExclusive);
+                drawPerfRow (g, withChildrenBounds, "With Children", history.total, hasChildren);
             }
             else
             {
                 maxLabel.setVisible (false);
+                avgLabel.setVisible (false);
             }
+#endif
 
             if (colorPicking)
             {
@@ -161,25 +156,55 @@ namespace melatonin
 
             auto area = getLocalBounds();
             buttonsBounds = area.removeFromTop (32);
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
             timingToggle.setBounds (buttonsBounds.removeFromRight (32));
             buttonsBounds.removeFromRight (12);
+#endif
             contentBounds = area;
 
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
             if (showsPerformanceTimings())
             {
                 auto performanceBounds = area.removeFromBottom (50).withLeft (32);
-                maxBounds = performanceBounds.withLeft (304).withWidth (80).translated (0, -4).withTrimmedBottom (4);
-                auto pivot = maxBounds.getTopRight().toFloat();
+
+                // Two highlighted boxes spanning both rows on the right.
+                // We carve them off the right with a small gap between so the
+                // AVG and MAX columns read as separate sections, and a
+                // breathing-room inset so MAX doesn't kiss the panel edge.
+                constexpr int boxWidth = 80;
+                constexpr int boxGap = 8;
+                performanceBounds.removeFromRight (kBoxRightInset);
+                maxBounds = performanceBounds.removeFromRight (boxWidth)
+                                             .translated (0, -4).withTrimmedBottom (4);
+                performanceBounds.removeFromRight (boxGap);
+                avgBounds = performanceBounds.removeFromRight (boxWidth)
+                                             .translated (0, -4).withTrimmedBottom (4);
+
+                // Histogram area is whatever's between the row label and the
+                // AVG box. We keep it as a single full-height region so paint()
+                // can carve a per-row strip out of it.
+                histogramArea = performanceBounds.withTrimmedLeft (100).withTrimmedRight (4);
+
                 exclusiveBounds = performanceBounds.removeFromTop (25);
                 withChildrenBounds = performanceBounds;
-                maxLabel.setBounds (maxBounds.withLeft ((int) pivot.getX() - 50));
-                maxLabel.setTransform (juce::AffineTransform().rotated (-juce::MathConstants<float>::halfPi, pivot.getX(), pivot.getY()).translated (-22, -2));
+
+                auto positionRotatedLabel = [] (juce::Label& label, juce::Rectangle<int> b) {
+                    auto pivot = b.getTopRight().toFloat();
+                    label.setBounds (b.withLeft ((int) pivot.getX() - 50));
+                    label.setTransform (juce::AffineTransform()
+                        .rotated (-juce::MathConstants<float>::halfPi, pivot.getX(), pivot.getY())
+                        .translated (-22, -2));
+                };
+                positionRotatedLabel (maxLabel, maxBounds);
+                positionRotatedLabel (avgLabel, avgBounds);
             }
             else
             {
                 exclusiveBounds = juce::Rectangle<int>();
                 withChildrenBounds = juce::Rectangle<int>();
+                histogramArea = juce::Rectangle<int>();
             }
+#endif
 
             // default for this ends up being 32 48 382 68
             maxPreviewImageBounds = area.reduced (32, 16);
@@ -188,25 +213,15 @@ namespace melatonin
 
         void mouseDoubleClick (const juce::MouseEvent&) override
         {
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
             if (model.getSelectedComponent())
             {
-                // clear timings
-                // TODO: these should be settable from model
-                auto props = model.getSelectedComponent()->getProperties();
-                if (model.hasPerformanceTiming())
-                {
-                    juce::StringArray items = { "timing1", "timing2", "timing3", "timingMax", "timingWithChildren1", "timingWithChildren2", "timingWithChildren3", "timingWithChildrenMax" };
-                    for (auto& item : items)
-                        props.set (item, 0.0);
-                    model.refresh();
-                }
-
-                // force repaint to grab new timings
+                model.clearPaintHistory();
+                // force repaint to start re-collecting samples
                 model.getSelectedComponent()->repaint();
-
-                // update the UI
                 repaint();
             }
+#endif
         }
 
         // called by color picker
@@ -224,9 +239,16 @@ namespace melatonin
             repaint();
         }
 
-        [[nodiscard]] bool showsPerformanceTimings()
+        [[nodiscard]] bool showsPerformanceTimings() const
         {
-            return !colorPicking && model.hasPerformanceTiming() && timingToggle.on;
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+            // The toggle is unconditional — paint diagnostics arrive
+            // automatically once the selected component repaints, so we don't
+            // gate the layout on whether data has arrived yet.
+            return !colorPicking && timingToggle.on;
+#else
+            return false;
+#endif
         }
 
     private:
@@ -238,12 +260,21 @@ namespace melatonin
 
         juce::Rectangle<int> buttonsBounds;
         juce::Rectangle<int> contentBounds;
+
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        // Layout bounds + UI elements that only exist when the JUCE paint
+        // diagnostics callback is available. On older JUCE this entire panel
+        // is hidden, so there's no reason to allocate the labels or toggle.
         juce::Rectangle<int> exclusiveBounds;
         juce::Rectangle<int> withChildrenBounds;
         juce::Rectangle<int> maxBounds;
+        juce::Rectangle<int> avgBounds;
+        juce::Rectangle<int> histogramArea;
 
         InspectorImageButton timingToggle { "timing", { 4, 4 }, true };
         juce::Label maxLabel { "max", "MAX" };
+        juce::Label avgLabel { "avg", "AVG" };
+#endif
 
         void componentModelChanged (ComponentModel&) override
         {
@@ -257,6 +288,109 @@ namespace melatonin
             colorPicking = false;
         }
 
+        void componentModelPaintHistoryUpdated (ComponentModel&) override
+        {
+            // Cheap path: no model rebuild, just redraw the timings overlay.
+            if (showsPerformanceTimings())
+                repaint();
+        }
+
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        // Histogram bar thresholds — the diagnostics callback captures every
+        // paint at framerate, so the relevant scale is sub-millisecond.
+        static constexpr double kHistogramYellowSec = 0.0003; // 0.3 ms
+        static constexpr double kHistogramRedSec    = 0.001;  // 1.0 ms
+        static constexpr double kHistogramFullScaleSec = 0.002; // 2 ms => full bar
+        static constexpr int kHistogramBarWidth = 2;
+        static constexpr int kHistogramBarGap   = 1; // separates back-to-back paints visually
+        static constexpr int kHistogramBarPitch = kHistogramBarWidth + kHistogramBarGap;
+        static constexpr int kHistogramBandHeight = 17; // sits inside the row, aligned with text
+        static constexpr int kHistogramBandYOffset = -5; // raise bars to overlap the row text vertically
+        static constexpr int kBoxValueLeftPad   = 2;  // breathing room before the value text
+        static constexpr int kBoxValueRightPad  = 7;  // space between the value text and the rotated AVG/MAX label
+        static constexpr int kBoxRightInset = 5; // breathing room between the MAX box and the panel edge
+
+        void drawPerfRow (juce::Graphics& g,
+                          juce::Rectangle<int> rowBounds,
+                          const juce::String& rowLabel,
+                          const PaintDiagnosticsHistory::Metric& metric,
+                          bool hasData) const
+        {
+            g.setColour (hasData ? colors::propertyName : colors::propertyValueDisabled);
+            g.drawText (rowLabel, rowBounds.withWidth (100), juce::Justification::topLeft);
+
+            // Histogram band is vertically aligned with the row label (rather
+            // than bottom-anchored to the row) so the bars read as part of the
+            // same line of information as the row label and the AVG/MAX values.
+            auto rowHistogram = histogramArea.withY (rowBounds.getY() + kHistogramBandYOffset)
+                                             .withHeight (kHistogramBandHeight);
+            drawHistogram (g, rowHistogram, metric);
+
+            const auto avgValueBounds = avgBounds.withY (rowBounds.getY())
+                                                 .withHeight (rowBounds.getHeight())
+                                                 .withTrimmedLeft (kBoxValueLeftPad)
+                                                 .withTrimmedRight (kBoxValueRightPad);
+            const auto maxValueBounds = maxBounds.withY (rowBounds.getY())
+                                                 .withHeight (rowBounds.getHeight())
+                                                 .withTrimmedLeft (kBoxValueLeftPad)
+                                                 .withTrimmedRight (kBoxValueRightPad);
+            drawTimingText (g, avgValueBounds, metric.average(), !hasData);
+            drawTimingText (g, maxValueBounds, metric.max, !hasData);
+        }
+
+        void drawHistogram (juce::Graphics& g,
+                            juce::Rectangle<int> bounds,
+                            const PaintDiagnosticsHistory::Metric& metric) const
+        {
+            if (metric.filled == 0 || bounds.isEmpty())
+                return;
+
+            // Histogram colours — explicit so they don't drift if the inspector
+            // theme changes. Blue overrides timing-based colour to flag samples
+            // where JUCE served the paint from the component's image cache,
+            // since those are near-zero-cost paints regardless of the duration.
+            static const juce::Colour green  = juce::Colour::fromRGB (98, 209, 116);
+            static const juce::Colour yellow = juce::Colour::fromRGB (255, 204, 68);
+            static const juce::Colour red    = colors::propertyValueError;
+            static const juce::Colour blue   = juce::Colour::fromRGB (102, 187, 255);
+
+            const int maxBars = juce::jmin (metric.filled, bounds.getWidth() / kHistogramBarPitch);
+            const int skip = metric.filled - maxBars;
+            const int oldestIdx = (metric.writeIdx - metric.filled + metric.capacity) % metric.capacity;
+
+            for (int i = 0; i < maxBars; ++i)
+            {
+                const int sIdx = (oldestIdx + skip + i) % metric.capacity;
+                const auto& sample = metric.samples[(size_t) sIdx];
+                const bool isCache = (sample.cache != PaintDiagnosticsHistory::CacheState::none);
+
+                juce::Colour c;
+                if (isCache)
+                    c = blue;
+                else if (sample.seconds <= 0.0)
+                    continue;
+                else if (sample.seconds > kHistogramRedSec)
+                    c = red;
+                else if (sample.seconds > kHistogramYellowSec)
+                    c = yellow;
+                else
+                    c = green;
+
+                // Cache hits paint to ~zero so a pure time-based scale would
+                // show them as invisible 1px nubs. Floor cache-hit bars at ~25%
+                // height so the blue strip is actually readable.
+                const double scaled = isCache
+                    ? juce::jmax (0.25, juce::jmin (sample.seconds / kHistogramFullScaleSec, 1.0))
+                    : juce::jmin (sample.seconds / kHistogramFullScaleSec, 1.0);
+                const int barH = juce::jmax (1, (int) (scaled * (double) bounds.getHeight()));
+                const int x = bounds.getX() + i * kHistogramBarPitch;
+                const int y = bounds.getBottom() - barH;
+
+                g.setColour (c);
+                g.fillRect (x, y, kHistogramBarWidth, barH);
+            }
+        }
+
         static void drawTimingText (juce::Graphics& g, juce::Rectangle<int> bounds, double value, bool disabled = false)
         {
             auto text = timingWithUnits (disabled ? 0 : value);
@@ -264,10 +398,10 @@ namespace melatonin
             auto ms = value * 1000;
             if (disabled || ms * 1000 < 1)
                 g.setColour (colors::propertyValueDisabled);
-            else if (ms > 3)
-                g.setColour (colors::propertyValueWarn);
             else if (ms > 8)
                 g.setColour (colors::propertyValueError);
+            else if (ms > 3)
+                g.setColour (colors::propertyValueWarn);
             else
                 g.setColour (colors::propertyValue);
 
@@ -284,6 +418,7 @@ namespace melatonin
             else
                 return juce::String (ms, 1) + "ms";
         }
+#endif
 
         // we draw the checkerboard at the full preview width and cache it
         // it's later clipped as needed

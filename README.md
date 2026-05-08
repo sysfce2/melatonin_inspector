@@ -130,11 +130,23 @@ Overlay an FPS meter on your Editor to get an intuitive understanding of your pa
 
 ## Display component performance in real time
 
-A life saving feature. 
+A life saving feature.  
 
-See time spent exclusively in a component's `paint` method as well as conveniently provide you with a sum with all children.
+Works out of the box on JUCE 8.0.13 and later. 
 
-Keep track of the max. Double click to `repaint` and get fresh timings. See [setup paint timing](#6-optional-setup-component-timing).
+On older versions of the JUCE, this feature is no longer available.
+
+Toggle the stopwatch button in the Preview panel to see a per-paint histogram, plus average and peak times, for the selected component. 
+
+Green is under 0.3ms.
+Yellow is above 0.3ms.
+Red is > 1ms. 
+Blue bars are served from component's image cache. 
+
+- **Exclusive** — time spent in the component's own `paint()` + `paintOverChildren()` + any image effect.
+- **With Children** — full paint cycle including descendants.
+
+Double-click the preview to reset the histogram.
 
 ![AudioPluginHost - 2023-08-16 57](https://github.com/sudara/melatonin_inspector/assets/472/7b08ea30-ebd1-4900-bb67-02bb8393211b)
 
@@ -280,26 +292,6 @@ if (!inspector)
 inspector->setVisible (true);
 ```
 Thanks to @FigBug for this feature.
-
-## 6. Optional: Setup component timing
-
-Just `#include modules/melatonin_inspector/melatonin/helpers/timing.h` and then call the RAII helper ***at the top*** of a component's paint method:
-
-```c++
-void paint (juce::Graphics& g) override
-{
-    melatonin::ComponentTimer timer { this };
-
-    // do all your expensive painting...
- ```
-
-This simply times the method and stores it in the component's own properties. It will store up to 3 values named `timing1`, `timing2`, `timing3`.
-
-Want automatic timings for every JUCE component, including stock widgets? [Upvote this FR](https://forum.juce.com/t/fr-callback-or-other-mechanism-for-exposing-component-debugging-timing/54481/1).
-
-Want timings for your custom components ***right now***? Do what I do and derive all your components from a `juce::Component` subclass which wraps the `paint` call and adds the helper before `paint` is called. 
-
-Check out [the forum post for detail](https://forum.juce.com/t/fr-callback-or-other-mechanism-for-exposing-component-debugging-timing/54481/11?u=sudara). Or, if you run a JUCE fork, you might prefer [Roland's solution](https://forum.juce.com/t/fr-callback-or-other-mechanism-for-exposing-component-debugging-timing/54481/6?u=sudara).
 
 ## FAQ
 
