@@ -19,7 +19,7 @@ namespace melatonin
 #if MELATONIN_HAS_PAINT_DIAGNOSTICS
             addChildComponent (maxLabel);
             addChildComponent (avgLabel);
-            addAndMakeVisible (timingToggle);
+            addChildComponent (timingToggle);
             for (auto* l : { &maxLabel, &avgLabel })
             {
                 l->setColour (juce::Label::textColourId, colors::iconOff);
@@ -242,10 +242,7 @@ namespace melatonin
         [[nodiscard]] bool showsPerformanceTimings() const
         {
 #if MELATONIN_HAS_PAINT_DIAGNOSTICS
-            // The toggle is unconditional — paint diagnostics arrive
-            // automatically once the selected component repaints, so we don't
-            // gate the layout on whether data has arrived yet.
-            return !colorPicking && timingToggle.on;
+            return !colorPicking && timingToggle.on && model.hasPaintHistory();
 #else
             return false;
 #endif
@@ -286,16 +283,34 @@ namespace melatonin
                 previewImage = juce::Image();
 
             colorPicking = false;
+
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+            updateTimingToggleVisibility();
+#endif
         }
 
         void componentModelPaintHistoryUpdated (ComponentModel&) override
         {
+#if MELATONIN_HAS_PAINT_DIAGNOSTICS
+            updateTimingToggleVisibility();
+#endif
             // Cheap path: no model rebuild, just redraw the timings overlay.
             if (showsPerformanceTimings())
                 repaint();
         }
 
 #if MELATONIN_HAS_PAINT_DIAGNOSTICS
+        void updateTimingToggleVisibility()
+        {
+            const bool shouldBeVisible = model.hasPaintHistory();
+            if (timingToggle.isVisible() == shouldBeVisible)
+                return;
+
+            timingToggle.setVisible (shouldBeVisible);
+            if (auto* parent = getParentComponent())
+                parent->resized();
+        }
+
         // Histogram bar thresholds — the diagnostics callback captures every
         // paint at framerate, so the relevant scale is sub-millisecond.
         static constexpr double kHistogramYellowSec = 0.0003; // 0.3 ms

@@ -4,7 +4,7 @@
 
 A JUCE module that gives you the ability to inspect and visually edit (non-destructively) components in your UI.
 
-It's inspired by [Figma](https://figma.com) (where I prefer to design UI), web browser web inspectors and Jim Credland's [Component Debugger](https://github.com/jcredland/juce-toys/blob/master/jcf_debug/source/component_debugger.cpp) [juce-toys](https://github.com/jcredland/juce-toys). 
+It's inspired by [Figma](https://figma.com) (where I prefer to design UI), web browser web inspectors and Jim Credland's [Component Debugger](https://github.com/jcredland/juce-toys/blob/master/jcf_debug/source/component_debugger.cpp) [juce-toys](https://github.com/jcredland/juce-toys).
 
 A big hearty thanks to [Dmytro Kiro](https://github.com/dikadk) and [Roland Rabien (aka FigBug)](https://github.com/figbug) for contributing some great features!
 
@@ -72,18 +72,18 @@ We also display component *padding* if you follow the convention of storing them
 
 ## Inspect and modify component flags and properties
 
-See the most important component properties at a glance, including look and feels, fonts for labels, etc. Where applicable, flags are editable! 
+See the most important component properties at a glance, including look and feels, fonts for labels, etc. Where applicable, flags are editable!
 
 <p align="center">
 <img src="https://user-images.githubusercontent.com/472/213707219-dc8619c1-8800-4267-b3f3-0c9911817a63.jpg" width="600"/>
 </p>
 
 
-Any custom properties you've added the component will also show up here and be editable. 
+Any custom properties you've added the component will also show up here and be editable.
 
 ![AudioPluginHost - 2023-08-14 01](https://github.com/sudara/melatonin_inspector/assets/472/3c69c652-5468-409b-9e3c-134868f4db9c)
 
-## Nudge components around 
+## Nudge components around
 
 Verify new values, get things pixel perfect.
 
@@ -101,7 +101,7 @@ Hold "alt" while component is selected. A Figma inspired feature.
 
 ## Display and modify JUCE widget colors
 
-No, it's not a christmas miracle, but we do [magically](https://github.com/sudara/melatonin_inspector/blob/main/update_juce_colours.rb) display JUCE's friendly `enum ColourIds` names from the stock widgets. 
+No, it's not a christmas miracle, but we do [magically](https://github.com/sudara/melatonin_inspector/blob/main/update_juce_colours.rb) display JUCE's friendly `enum ColourIds` names from the stock widgets.
 
 See what that Slider's `trackColourId` is set to, and hey, go ahead and try out a new theme in real time.
 
@@ -130,18 +130,9 @@ Overlay an FPS meter on your Editor to get an intuitive understanding of your pa
 
 ## Display component performance in real time
 
-A life saving feature.  
+> **Requires JUCE 8.0.13 or later.** Paint timings rely on `ComponentListener::componentPainted` and `juce::TimedDiagnostic`, both introduced in 8.0.13. **No app-side setup is required** — toggle the stopwatch and it works.
 
-Works out of the box on JUCE 8.0.13 and later. 
-
-On older versions of the JUCE, this feature is no longer available.
-
-Toggle the stopwatch button in the Preview panel to see a per-paint histogram, plus average and peak times, for the selected component. 
-
-Green is under 0.3ms.
-Yellow is above 0.3ms.
-Red is > 1ms.
-Blue bars are cache hits.
+Toggle the stopwatch button in the Preview panel to see a per-paint histogram, plus average and peak times, for the selected component. Bars are color-coded green / yellow (>0.3 ms) / red (>1 ms), with blue bars marking paints served from the component's image cache. Two rows are shown:
 
 - **Exclusive** — time spent in the component's own `paint()` + `paintOverChildren()` + any image effect.
 - **With Children** — full paint cycle including descendants.
@@ -150,7 +141,7 @@ Double-click the preview to reset the histogram.
 
 ![AudioPluginHost - 2023-08-16 57](https://github.com/sudara/melatonin_inspector/assets/472/7b08ea30-ebd1-4900-bb67-02bb8393211b)
 
-## Undo Manager Inspection 
+## Undo Manager Inspection
 
 Set it up with
 
@@ -197,7 +188,7 @@ git submodule update --remote --merge modules/melatonin_inspector
 
 ### CMake Step 2: Tell JUCE about the module
 
-Wait wait, not so fast! You couldn't get away that easily. 
+Wait wait, not so fast! You couldn't get away that easily.
 
 *After* your `juce_add_plugin` call you will need to link your plugin to the module's target, for example:
 
@@ -208,12 +199,12 @@ target_link_libraries("YourProject" PRIVATE melatonin_inspector)
 Note: you don't have to call `juce_add_module`. That's handled by our CMake.
 
 If you use Projucer, add the module manually.
- 
+
 ## Installing with Projucer
 
 If you're rolling old school, or just prefer Projucer life, you'll be happy to note that though JUCE doesn't make it easy we've bent over backwards to make sure our icons, etc are included in the module.
 
-### Download the module 
+### Download the module
 
 You can still use git to add it as a submodule if you'd like stay up to date with any changes:
 
@@ -263,15 +254,15 @@ What I do is have a GUI toggle that pops open the window and enables inspection:
 
 ```cpp
 // open the inspector window
-inspector.setVisible(true); 
+inspector.setVisible(true);
 
 // enable the inspector
 inspector.toggle(true);
 ```
 
-## 5. Optional: Make it smarter 
+## 5. Optional: Make it smarter
 
-Setting up as above means that the inspector will always be constructed with your editor. Clicking close on the inspector's `DocumentWindow` will just hide it while disabling inspection. 
+Setting up as above means that the inspector will always be constructed with your editor. Clicking close on the inspector's `DocumentWindow` will just hide it while disabling inspection.
 
 If you wrap the inspector with `#if DEBUG` this might be fine for you.
 
@@ -293,6 +284,14 @@ inspector->setVisible (true);
 ```
 Thanks to @FigBug for this feature.
 
+## 6. Component paint timings
+
+Component paint timings (the histogram + AVG/MAX panel) **require JUCE 8.0.13 or later**. On older JUCE the inspector still builds and runs — the timings panel is simply hidden.
+
+**Zero setup required** on JUCE 8.0.13+. There is nothing to enable, no `#define` to set, no `ComponentTimer` to add to your `paint()` methods, no project flag. Just toggle the stopwatch button in the Preview panel of the running inspector and the histogram appears. The inspector subscribes to JUCE's built-in `ComponentListener::componentPainted` callback under the hood.
+
+See ["Display component performance in real time"](#display-component-performance-in-real-time) above.
+
 ## FAQ
 
 ### Can I use this in a GUI app/standalone?
@@ -301,15 +300,15 @@ Yup! See the tests folder for an example.
 
 ### Can I save my component resizes or edits?
 
-Nope! 
+Nope!
 
 For that, one would need a component system relying on data for placement and size vs. code. See [Daniel's Foley GUI Magic](https://github.com/ffAudio/foleys_gui_magic).
 
 ### How is the component hierarchy created?
 
-It traverses components from the root, building a `TreeView`. 
+It traverses components from the root, building a `TreeView`.
 
-In the special case of `TabbedComponent`, each tab is added as a child. 
+In the special case of `TabbedComponent`, each tab is added as a child.
 
 ### My FPS seems low, is it accurate?
 
@@ -335,16 +334,16 @@ Please do submit an Issue or PR on the repository! Or visit the [official thread
 
 ## Contributing
 
-Contributions are always welcome! 
+Contributions are always welcome!
 
 The inspector wouldn't be half as awesome without the help of the community.
 
 If you'd like to contribute, look out for the issues tagged with "[Good First Issue](https://github.com/sudara/melatonin_inspector/issues?q=is:issue+is:open+label:%22good+first+issue%22)"
 
-Note that CI tests for compilation and treats errors on both macOS and Windows as errors. 
+Note that CI tests for compilation and treats errors on both macOS and Windows as errors.
 
 ### Assets
 
-All assets are PNG exported at 2x. 
+All assets are PNG exported at 2x.
 
 Please see the CMakelists.txt file for details on how to add icons in a Projucer friendly way. There's a script for it!
