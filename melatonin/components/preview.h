@@ -31,7 +31,8 @@ namespace melatonin
             timingToggle.on = settings->props->getBoolValue ("showPerformanceTimings", false);
             timingToggle.onClick = [this] {
                 settings->props->setValue ("showPerformanceTimings", timingToggle.on);
-                getParentComponent()->resized();
+                if (auto* parent = getParentComponent())
+                    parent->resized();
             };
 #endif
         }
