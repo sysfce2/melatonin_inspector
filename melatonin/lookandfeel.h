@@ -109,7 +109,7 @@ namespace melatonin
         void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool /*shouldDrawButtonAsHighlighted*/, bool /*shouldDrawButtonAsDown*/) override
         {
             float toggleWidth = 14;
-            float leftPadding = 0;
+            float leftPadding = 2;
 
             juce::Rectangle<float> bounds (leftPadding, (float) button.getHeight() / 2 - toggleWidth / 2.f, toggleWidth, toggleWidth);
 
