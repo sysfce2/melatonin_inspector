@@ -130,16 +130,20 @@ Overlay an FPS meter on your Editor to get an intuitive understanding of your pa
 
 ## Display component performance in real time
 
-> **Requires JUCE 8.0.13 or later.** Paint timings rely on `ComponentListener::componentPainted` and `juce::TimedDiagnostic`, both introduced in 8.0.13. **No app-side setup is required** — toggle the stopwatch and it works.
+Requires JUCE 8.0.13 or later
 
-Toggle the stopwatch button in the Preview panel to see a per-paint histogram, plus average and peak times, for the selected component. Bars are color-coded green / yellow (>0.3 ms) / red (>1 ms), with blue bars marking paints served from the component's image cache. Two rows are shown:
+Toggle the stopwatch button in the Preview panel to see a per-paint histogram, plus average and peak times, for the selected component. 
+
+<img width="1200" height="268" alt="Sine Machine v27 - 2026-05-12 20" src="https://github.com/user-attachments/assets/ee07a280-c6d8-4cf4-8618-6befa8b4a458" />
 
 - **Exclusive** — time spent in the component's own `paint()` + `paintOverChildren()` + any image effect.
 - **With Children** — full paint cycle including descendants.
 
-Double-click the preview to reset the histogram.
+Green: Under 0.3ms  
+Yellow: Over 0.3ms  
+Red: Over 1ms  
 
-![AudioPluginHost - 2023-08-16 57](https://github.com/sudara/melatonin_inspector/assets/472/7b08ea30-ebd1-4900-bb67-02bb8393211b)
+Double-click the preview to reset the histogram.
 
 ## Undo Manager Inspection
 
