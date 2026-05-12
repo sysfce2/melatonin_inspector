@@ -10,11 +10,7 @@ namespace melatonin
         static inline juce::StringArray propertiesToIgnore { "paddingLeft",
             "paddingRight",
             "paddingTop",
-            "paddingBottom",
-            "timing1",
-            "timing2",
-            "timing3",
-            "timingMax" };
+            "paddingBottom" };
 
         explicit Properties (ComponentModel& _model) : model (_model)
         {
