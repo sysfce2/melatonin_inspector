@@ -142,6 +142,7 @@ Toggle the stopwatch button in the Preview panel to see a per-paint histogram, p
 Green: Under 0.3ms  
 Yellow: Over 0.3ms  
 Red: Over 1ms  
+Blue: Cache Hit (`setBufferedToImage`)  
 
 Double-click the preview to reset the histogram.
 
