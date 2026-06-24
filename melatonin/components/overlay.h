@@ -20,7 +20,7 @@ namespace melatonin
 
             for (auto* l : labels)
             {
-               #if JUCE_MAJOR_VERSION == 8
+               #if JUCE_MAJOR_VERSION >= 8
                 l->setFont (juce::FontOptions (13.f));
                #else
                 l->setFont (13.f);
@@ -31,7 +31,7 @@ namespace melatonin
                 addAndMakeVisible (l);
             }
 
-           #if JUCE_MAJOR_VERSION == 8
+           #if JUCE_MAJOR_VERSION >= 8
             dimensions.setFont (juce::FontOptions (13.f));
            #else
             dimensions.setFont (13.f);

@@ -22,7 +22,7 @@ namespace melatonin
 
             addAndMakeVisible (widthLabel);
             widthLabel.addListener (this);
-           #if JUCE_MAJOR_VERSION == 8
+           #if JUCE_MAJOR_VERSION >= 8
             widthLabel.setFont (juce::FontOptions (20.0f));
            #else
             widthLabel.setFont (20.0f);
@@ -32,7 +32,7 @@ namespace melatonin
 
             addAndMakeVisible (byLabel);
             byLabel.setText (juce::CharPointer_UTF8("\xc3\x97"), juce::dontSendNotification);
-           #if JUCE_MAJOR_VERSION == 8
+           #if JUCE_MAJOR_VERSION >= 8
             byLabel.setFont (juce::FontOptions (20.f));
            #else
             byLabel.setFont (20.f);
@@ -42,7 +42,7 @@ namespace melatonin
 
             addAndMakeVisible (heightLabel);
             heightLabel.addListener (this);
-           #if JUCE_MAJOR_VERSION == 8
+           #if JUCE_MAJOR_VERSION >= 8
             heightLabel.setFont (juce::FontOptions (20.f));
            #else
             heightLabel.setFont (20.f);

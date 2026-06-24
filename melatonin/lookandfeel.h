@@ -232,7 +232,7 @@ namespace melatonin
         static juce::Font getInspectorFont(float fontHeight, int styleFlags) {
             static juce::String inspectorFont;
             if (inspectorFont.isEmpty ()) {
-               #if JUCE_MAJOR_VERSION == 8
+               #if JUCE_MAJOR_VERSION >= 8
                 juce::Font testFont = juce::FontOptions { "Verdana", 12, juce::Font::FontStyleFlags::plain };
                #else
                 juce::Font testFont = { "Verdana", 12, juce::Font::FontStyleFlags::plain };
@@ -243,7 +243,7 @@ namespace melatonin
                     inspectorFont = juce::Font::getDefaultSansSerifFontName ();
                 }
             }
-           #if JUCE_MAJOR_VERSION == 8
+           #if JUCE_MAJOR_VERSION >= 8
             return juce::FontOptions { inspectorFont, fontHeight, styleFlags };
            #else
             return { inspectorFont, fontHeight, styleFlags };
@@ -253,7 +253,7 @@ namespace melatonin
 
         static float getStringWidth (const juce::Font& font, const juce::String& text)
         {
-#if JUCE_MAJOR_VERSION == 8 && JUCE_BUILDNUMBER >= 2
+#if JUCE_MAJOR_VERSION >= 9 || (JUCE_MAJOR_VERSION == 8 && JUCE_BUILDNUMBER >= 2)
             return juce::GlyphArrangement::getStringWidth (font, text);
 #else
             return font.getStringWidthFloat (text);
